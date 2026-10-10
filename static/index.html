@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q-Sentinel | Hybrid Quantum-Classical Early Disease Screening</title>
+<style>
+:root{
+  --bg:#F4F7FB; --card:#FFFFFF; --ink:#1F2937; --mute:#64748B; --navy:#0B1B3A;
+  --teal:#14B8A6; --violet:#6D5BD0; --coral:#E5534B; --amber:#D99A1E; --line:#E2E8F0;
+  --shadow:0 2px 10px rgba(11,27,58,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0A1226; --card:#12203F; --ink:#E6ECF8; --mute:#93A4C3; --navy:#E6ECF8; --line:#24365E; --shadow:0 2px 10px rgba(0,0,0,.4); }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Calibri,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+header{padding:28px 5vw 8px}
+.tag{font-size:12px;letter-spacing:.25em;font-weight:700;color:var(--teal)}
+h1{font-family:Cambria,Georgia,serif;font-size:clamp(28px,4vw,40px);color:var(--navy);margin:4px 0}
+header p{color:var(--mute);max-width:760px}
+main{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:20px;padding:16px 5vw 40px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:17px;color:var(--navy);margin-bottom:12px}
+.right{display:grid;gap:20px}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:transparent;color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer}
+button:hover{border-color:var(--teal);color:var(--teal)}
+.field{margin-bottom:14px}
+.field label{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
+.field label b{color:var(--teal)}
+input[type=range]{width:100%;accent-color:var(--teal)}
+.hint{font-size:12px;color:var(--mute)}
+.result{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.result{grid-template-columns:1fr}}
+.big{font-family:Cambria,Georgia,serif;font-size:64px;font-weight:700;line-height:1}
+.band{display:inline-block;padding:3px 12px;border-radius:999px;color:#fff;font-weight:700;font-size:13px;margin:8px 0}
+.meter{height:12px;background:var(--line);border-radius:8px;overflow:hidden;margin:6px 0 4px}
+.meter>i{display:block;height:100%;border-radius:8px;transition:width .35s}
+.row{display:grid;grid-template-columns:110px 1fr 52px;align-items:center;gap:8px;font-size:14px;margin:7px 0}
+.row .meter{margin:0}
+.gate{border-radius:10px;padding:12px 14px;background:rgba(109,91,208,.12);font-size:14px}
+.gate b{color:var(--violet)}
+.contrib .row{grid-template-columns:120px 1fr 56px}
+.bar2{position:relative;height:12px;background:var(--line);border-radius:6px}
+.bar2 i{position:absolute;top:0;height:100%;border-radius:6px;transition:all .35s}
+.bar2 s{position:absolute;left:50%;top:-2px;width:1px;height:16px;background:var(--mute)}
+svg text{font-family:Calibri,Arial,sans-serif;fill:var(--ink)}
+.circuit{overflow-x:auto}
+.note{font-size:13px;color:var(--mute);margin-top:10px}
+footer{padding:0 5vw 30px;font-size:13px;color:var(--mute)}
+footer b{color:var(--coral)}
+</style>
+</head>
+<body>
+<header>
+  <div class="tag">Q-SENTINEL</div>
+  <h1>Hybrid quantum-classical early disease screening</h1>
+  <p>Enter patient indicators. A classical logistic model and a 5-qubit variational circuit (simulated live in your browser) each score the risk, an advantage gate picks the safer answer, and every score is explained.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Patient indicators</h2>
+    <div class="presets">
+      <button data-p="healthy">Healthy</button>
+      <button data-p="pre">Pre-diabetic</button>
+      <button data-p="high">High risk</button>
+    </div>
+    <div id="fields"></div>
+    <div class="field">
+      <label>Patient ref (optional)</label>
+      <input type="text" id="pref" placeholder="e.g. P-001" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink)">
+      <div style="display:flex;gap:8px;margin-top:8px"><button id="saveBtn">Save to history</button><button id="benchBtn">Show benchmark</button></div>
+      <div class="hint" id="api">Backend: checking...</div>
+    </div>
+    <div id="extra" class="hint" style="margin-top:8px"></div>
+    <div class="field">
+      <label>Simulated hardware noise <b id="noiseV">0%</b></label>
+      <input type="range" id="noise" min="0" max="40" value="0">
+      <div class="hint">Mixes each qubit reading toward 50/50, like decoherence on real NISQ hardware.</div>
+    </div>
+  </section>
+
+  <div class="right">
+    <section class="card result">
+      <div>
+        <h2>Final risk score</h2>
+        <div class="big" id="risk">0%</div>
+        <span class="band" id="band">Low</span>
+        <div class="meter"><i id="riskBar"></i></div>
+        <p id="action" class="hint"></p>
+      </div>
+      <div>
+        <h2>Model comparison</h2>
+        <div class="row"><span>Classical</span><div class="meter"><i id="cBar" style="background:var(--mute)"></i></div><b id="cV"></b></div>
+        <div class="row"><span>Quantum hybrid</span><div class="meter"><i id="qBar" style="background:var(--violet)"></i></div><b id="qV"></b></div>
+        <div class="gate" id="gate"></div>
+      </div>
+    </section>
+
+    <section class="card contrib">
+      <h2>Why this score? (ablation attribution)</h2>
+      <div id="contrib"></div>
+      <p class="note">Each bar shows how much the final risk drops (green) or rises (red) if that indicator were set to a healthy baseline.</p>
+    </section>
+
+    <section class="card">
+      <h2>Live quantum circuit (5 qubits)</h2>
+      <div class="circuit"><svg id="circ" viewBox="0 0 760 270" width="100%" role="img" aria-label="Quantum circuit diagram"></svg></div>
+      <p class="note">Each indicator is angle-encoded with an RY rotation. Controlled-RY gates couple neighbours so combined exposures raise risk more than each alone. Bars at right show P(qubit = 1).</p>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <b>Demo only.</b> Weights are illustrative, not trained on patient data, and this is not a medical device. Replace <code>CLASSIC_W</code> and the circuit parameters with values from your trained Python models.
+</footer>
+
+<script>
+/* ---------- Configuration ---------- */
+const FEATURES = [
+  {id:'glucose', name:'Fasting glucose', unit:'mg/dL', min:70,  max:250, val:95,  qubit:0, wc:3.0, wq:0.30},
+  {id:'bmi',     name:'BMI',             unit:'kg/m²', min:15,  max:45,  val:23,  qubit:1, wc:1.4, wq:0.15},
+  {id:'bp',      name:'Systolic BP',     unit:'mmHg',  min:90,  max:200, val:118, qubit:2, wc:1.8, wq:0.20},
+  {id:'chol',    name:'Total cholesterol',unit:'mg/dL',min:120, max:320, val:170, qubit:3, wc:1.2, wq:0.15},
+  {id:'age',     name:'Age',             unit:'years', min:20,  max:90,  val:35,  qubit:4, wc:2.2, wq:0.20}
+];
+const PRESETS = {
+  healthy:{glucose:90,bmi:22,bp:115,chol:165,age:30},
+  pre:    {glucose:128,bmi:29,bp:132,chol:215,age:52},
+  high:   {glucose:190,bmi:37,bp:168,chol:280,age:68}
+};
+const CLASSIC_BIAS = -4.2;
+const ENC_SCALE = 0.8 * Math.PI;   // angle encoding range
+const COUPLE = 0.4;                // controlled-RY coupling angle
+const Q_SHARPNESS = 9, Q_BIAS = 0.42;
+const BASELINE_X = 0.2;            // "healthy" normalised level for attribution
+const N = FEATURES.length;
+
+/* ---------- Tiny statevector simulator ---------- */
+function newState(){ const s = new Float64Array(1<<N); s[0]=1; return s; }
+function applyRY(s,q,theta){                       // real amplitudes suffice for RY/CRY
+  const c=Math.cos(theta/2), sn=Math.sin(theta/2), bit=1<<q;
+  for(let i=0;i<s.length;i++){ if(i&bit) continue;
+    const a=s[i], b=s[i|bit]; s[i]=c*a-sn*b; s[i|bit]=sn*a+c*b; }
+}
+function applyCRY(s,ctrl,tgt,theta){
+  const c=Math.cos(theta/2), sn=Math.sin(theta/2), cb=1<<ctrl, tb=1<<tgt;
+  for(let i=0;i<s.length;i++){ if(!(i&cb) || (i&tb)) continue;
+    const a=s[i], b=s[i|tb]; s[i]=c*a-sn*b; s[i|tb]=sn*a+c*b; }
+}
+function probOne(s,q){ let p=0; const bit=1<<q; for(let i=0;i<s.length;i++) if(i&bit) p+=s[i]*s[i]; return p; }
+
+/* ---------- Models ---------- */
+const sigmoid = z => 1/(1+Math.exp(-z));
+const norm = (f,v) => Math.min(1,Math.max(0,(v-f.min)/(f.max-f.min)));
+
+function classical(xs){
+  let z=CLASSIC_BIAS; FEATURES.forEach((f,i)=> z+=f.wc*xs[i]); return sigmoid(z);
+}
+function quantum(xs,noise){
+  const s=newState();
+  FEATURES.forEach((f,i)=> applyRY(s,f.qubit,ENC_SCALE*xs[i]));
+  for(let q=0;q<N-1;q++) applyCRY(s,q,q+1,COUPLE);
+  const p = FEATURES.map(f=>{ const raw=probOne(s,f.qubit); return raw*(1-noise)+0.5*noise; });
+  const score = FEATURES.reduce((a,f,i)=>a+f.wq*p[i],0);
+  return {risk:sigmoid(Q_SHARPNESS*(score-Q_BIAS)), p};
+}
+function hybrid(xs,noise){
+  const c=classical(xs), q=quantum(xs,noise).risk;
+  const cc=Math.abs(c-0.5)*2, qc=Math.abs(q-0.5)*2;
+  // Advantage gate: quantum leads only if it is clearly more confident and noise is low
+  let mode, risk;
+  if(noise>0.25){ mode='Classical fallback'; risk=c; }
+  else if(qc>cc+0.05){ mode='Quantum-led'; risk=q; }
+  else if(cc>qc+0.05){ mode='Classical-led'; risk=c; }
+  else { mode='Ensemble'; risk=(c+q)/2; }
+  return {c,q,cc,qc,mode,risk};
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+const state = {}; FEATURES.forEach(f=>state[f.id]=f.val);
+
+function buildFields(){
+  $('fields').innerHTML = FEATURES.map(f=>`
+    <div class="field"><label>${f.name} <b id="v_${f.id}"></b></label>
+    <input type="range" id="r_${f.id}" min="${f.min}" max="${f.max}" value="${f.val}"></div>`).join('');
+  FEATURES.forEach(f=>$('r_'+f.id).addEventListener('input',e=>{state[f.id]=+e.target.value;update();}));
+}
+function setValues(o){ FEATURES.forEach(f=>{ state[f.id]=o[f.id]; $('r_'+f.id).value=o[f.id]; }); update(); }
+
+const bandOf = r => r<0.3 ? ['Low','#14A38F','Routine annual check-up.']
+                  : r<0.6 ? ['Moderate','#D99A1E','Schedule a screening test within 3 months.']
+                  : ['High','#E5534B','Refer for clinical evaluation promptly.'];
+
+function update(){
+  const noise=$('noise').value/100; $('noiseV').textContent=Math.round(noise*100)+'%';
+  FEATURES.forEach(f=>$('v_'+f.id).textContent=state[f.id]+' '+f.unit);
+  const xs=FEATURES.map(f=>norm(f,state[f.id]));
+  const h=hybrid(xs,noise), qr=quantum(xs,noise);
+
+  const pct=r=>Math.round(r*100);
+  const [label,color,action]=bandOf(h.risk);
+  $('risk').textContent=pct(h.risk)+'%'; $('risk').style.color=color;
+  $('band').textContent=label+' risk'; $('band').style.background=color;
+  $('riskBar').style.width=pct(h.risk)+'%'; $('riskBar').style.background=color;
+  $('action').textContent=action;
+  $('cBar').style.width=pct(h.c)+'%'; $('cV').textContent=pct(h.c)+'%';
+  $('qBar').style.width=pct(h.q)+'%'; $('qV').textContent=pct(h.q)+'%';
+  $('gate').innerHTML=`<b>Advantage gate: ${h.mode}.</b> Confidence: classical ${pct(h.cc)}%, quantum ${pct(h.qc)}%.`+
+    (noise>0.25?' Noise is high, so the gate falls back to the classical model.':'');
+
+  // Ablation attribution
+  const contribs=FEATURES.map((f,i)=>{
+    const xb=xs.slice(); xb[i]=Math.min(xs[i],BASELINE_X);
+    return {name:f.name, d:h.risk-hybrid(xb,noise).risk};
+  }).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+  const maxd=Math.max(0.01,...contribs.map(c=>Math.abs(c.d)));
+  $('contrib').innerHTML=contribs.map(c=>{
+    const w=Math.abs(c.d)/maxd*50, up=c.d>=0;
+    return `<div class="row"><span>${c.name}</span><div class="bar2"><s></s>
+      <i style="background:${up?'var(--coral)':'var(--teal)'};width:${w}%;left:${up?50:50-w}%"></i></div>
+      <b>${up?'+':''}${(c.d*100).toFixed(1)}</b></div>`;
+  }).join('');
+
+  drawCircuit(xs,qr.p);
+}
+
+function drawCircuit(xs,p){
+  const y0=34, gap=50, X0=90;
+  let g='';
+  FEATURES.forEach((f,i)=>{
+    const y=y0+f.qubit*gap;
+    g+=`<line x1="${X0-20}" y1="${y}" x2="640" y2="${y}" stroke="var(--mute)" stroke-width="1.2"/>`;
+    g+=`<text x="8" y="${y+4}" font-size="13">|0⟩ ${f.name.split(' ').pop()}</text>`;
+    const th=(ENC_SCALE*xs[i]/Math.PI).toFixed(2);
+    g+=`<rect x="${X0}" y="${y-15}" width="86" height="30" rx="6" fill="var(--violet)"/>
+        <text x="${X0+43}" y="${y+4}" font-size="12" text-anchor="middle" style="fill:#fff">RY ${th}π</text>`;
+    g+=`<rect x="650" y="${y-9}" width="90" height="18" rx="4" fill="var(--line)"/>
+        <rect x="650" y="${y-9}" width="${(90*p[i]).toFixed(1)}" height="18" rx="4" fill="var(--teal)"/>
+        <text x="695" y="${y+4}" font-size="11" text-anchor="middle">${(p[i]*100).toFixed(0)}%</text>`;
+  });
+  for(let q=0;q<N-1;q++){
+    const x=240+q*95, ya=y0+q*gap, yb=y0+(q+1)*gap;
+    g+=`<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb-15}" stroke="var(--ink)" stroke-width="1.5"/>
+        <circle cx="${x}" cy="${ya}" r="5" fill="var(--ink)"/>
+        <rect x="${x-28}" y="${yb-15}" width="56" height="30" rx="6" fill="var(--teal)"/>
+        <text x="${x}" y="${yb+4}" font-size="12" text-anchor="middle" style="fill:#fff">RY ${(COUPLE/Math.PI).toFixed(2)}π</text>`;
+  }
+  g+=`<text x="650" y="${y0-22}" font-size="12" style="fill:var(--mute)">measure P(1)</text>`;
+  $('circ').innerHTML=g;
+}
+
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>setValues(PRESETS[b.dataset.p])));
+$('noise').addEventListener('input',()=>update());
+
+/* ---------- Backend integration (the maths above still runs locally for instant feedback) ---------- */
+const API = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:8000';
+let apiTimer=null;
+function payload(extra){ return Object.assign({}, state, {noise:$('noise').value/100}, extra||{}); }
+async function post(path, body){
+  const r = await fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+function checkApi(){
+  clearTimeout(apiTimer);
+  apiTimer=setTimeout(async()=>{
+    try{
+      const d=await post('/api/predict',payload());
+      if(d.error) throw new Error(d.error);
+      $('api').textContent='Backend connected: server risk '+d.risk_percent+'% ('+d.gate.mode+')';
+    }catch(e){ $('api').textContent='Backend offline: running in-browser only.'; }
+  },250);
+}
+$('saveBtn').addEventListener('click',async()=>{
+  try{
+    const d=await post('/api/predict',payload({save:true,patient_ref:$('pref').value||null}));
+    $('api').textContent=d.saved_id?('Saved as record #'+d.saved_id):(d.error||'Could not save');
+  }catch(e){ $('api').textContent='Backend offline: could not save.'; }
+});
+$('benchBtn').addEventListener('click',async()=>{
+  try{
+    const b=await (await fetch(API+'/api/benchmark')).json();
+    $('extra').innerHTML='<b>'+b.dataset+'</b> (threshold '+b.screening_threshold+')<br>'+
+      Object.entries(b.models).map(([k,m])=>k.replace(/_/g,' ')+': AUC '+m.auc+', recall '+m.recall).join('<br>')+'<br><i>'+b.honest_note+'</i>';
+  }catch(e){ $('extra').textContent='Backend offline.'; }
+});
+
+const _u=update; update=function(){_u();checkApi();};
+buildFields(); setValues(PRESETS.pre);
+</script>
+</body>
+</html>
